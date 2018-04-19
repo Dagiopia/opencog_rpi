@@ -27,6 +27,7 @@ for OpenCog on a Raspberry PI computer running Raspbian OS.
   -o   Install OpenCog (precompilled: may be outdated)
   -t   Download and Install Cross-Compilling Toolchain
   -c   Cross Compile OpenCog (Run on PC!)
+  -s   Cross Compile for Raspbian Stretch (boost 1.62)
   -v   Verbose output
   -h   This help message
 ```
@@ -72,6 +73,13 @@ If running the script for the first time, use the switches:
 ```
 	./octool_rpi.sh -tc
 ```
+
+If compiling for raspbian Stretch then the ``` -s ``` option can be used.
+By default the build is for jessie.
+```
+        ./octool_rpi.sh -tcs
+```
+
 This will download the cross compiler toolchain and compile opencog for RPI.
 It will create a Debian package which you can easily take to your RPI board and
 install. But remember to have  the base dependancies installed for the RPI first. 
