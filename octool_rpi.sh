@@ -52,7 +52,9 @@ INSTALL_PACKAGES="
 	libatomic-ops-dev \
 	libunistring-dev \
 	libffi-dev \
-	libreadline-dev "
+	libreadline-dev \
+	liboctomap-dev 
+	"
 
 INSTALL_RELEX_DEPS="
 	swig \
@@ -62,6 +64,7 @@ INSTALL_RELEX_DEPS="
 	libatomic-ops-dev \
 	libgmp-dev \
 	libffi-dev \
+	oracle-java8-jdk \
 	ant \
 	libcommons-logging-java \
 	libgetopt-java "
@@ -89,6 +92,9 @@ export CC_TC_LIBS_PATH_2="$CC_TC_DIR/tools-master/arm-bcm2708/arm-rpi-4.9.3-linu
 export CC_TC_BOOST_1_55_LIBS="$CC_TC_LIBS_PATH_2/opt/boost_1.55_armhf"
 export CC_TC_BOOST_1_62_LIBS="$CC_TC_LIBS_PATH_2/opt/boost_1.62_armhf"
 
+export COGUTIL_COMMIT="0"
+export ATOMSPACE_COMMIT="0"
+export OPENCOG_COMMIT="0"
 export DPKG__V="1.0-1"
 
 if [ $(uname -m) == "armv7l" ] ; then
@@ -143,12 +149,15 @@ setup_sys_for_cc () {
     cd $CC_TC_SRC_DIR
     rm -rf  *
     wget https://github.com/opencog/cogutil/archive/master.tar.gz
+    COGUTIL_COMMIT=$(curl https://api.github.com/repos/opencog/cogutil/commits/master | jq -r '.sha') 
     tar $VERBOSE -xf master.tar.gz
     rm master.tar.gz
     wget https://github.com/opencog/atomspace/archive/master.tar.gz
+    ATOMSPACE_COMMIT=$(curl https://api.github.com/repos/opencog/atomspace/commits/master | jq -r '.sha')
     tar $VERBOSE -xf master.tar.gz
     rm master.tar.gz
     wget https://github.com/opencog/opencog/archive/master.tar.gz
+    OPENCOG_COMMIT=$(curl https://api.github.com/repos/opencog/opencog/commits/master | jq -r '.sha')
     tar $VERBOSE -xf master.tar.gz
     rm master.tar.gz
     for d in * ; do echo $d ; mkdir $d/build_hf ; done
@@ -177,6 +186,9 @@ do_cc_for_rpi () {
 	tar -xf $CC_TC_BOOST_1_62_LIBS.tar.gz -C $CC_TC_LIBS_PATH_2/opt
 	cp -Prf $VERBOSE $CC_TC_BOOST_1_62_LIBS/include/boost $CC_TC_LIBS_PATH_2/usr/include
 	cp -Prf $VERBOSE $CC_TC_BOOST_1_62_LIBS/lib/arm-linux-gnueabihf/* $CC_TC_LIBS_PATH_2/usr/lib
+	# boost 1.62 needs stdc++ 6.0.22
+	cd $CC_TC_LIBS_PATH_2/../lib
+	ln -sf $CC_TC_LIBS_PATH_2/opt/libstdc++.so.6.0.22 libstdc++.so.6
 	export DEB_PKG_NAME="opencog-dev_1.0-2_armhf"
 	export DPKG__V="1.0-2"
     else
@@ -184,19 +196,22 @@ do_cc_for_rpi () {
 	tar -xf $CC_TC_BOOST_1_55_LIBS.tar.gz -C $CC_TC_LIBS_PATH_2/opt
 	cp -Prf $VERBOSE $CC_TC_BOOST_1_55_LIBS/include/boost $CC_TC_LIBS_PATH_2/usr/include
 	cp -Prf $VERBOSE $CC_TC_BOOST_1_55_LIBS/lib/arm-linux-gnueabihf/* $CC_TC_LIBS_PATH_2/usr/lib
+	# boost 1.55 needs stdc++ 6.0.20
+	cd $CC_TC_LIBS_PATH_2/../lib
+	ln -sf $CC_TC_LIBS_PATH_2/opt/libstdc++.so.6.0.20 libstdc++.so.6
 	export DEB_PKG_NAME="opencog-dev_1.0-1_armhf"
     fi
 
     export PATH=$PATH:$CC_TC_DIR/tools-master/arm-bcm2708/arm-rpi-4.9.3-linux-gnueabihf/bin
     
-    cp -f $CC_TC_DIR/cmake/* $CC_TC_SRC_DIR/opencog-master/lib
+    cp -f $CC_TC_DIR/cmake/Find* $CC_TC_SRC_DIR/opencog-master/lib
     
     #compiling cogutil
     cd $CC_TC_SRC_DIR/cogutil-master/build_hf
     rm -rf $CC_TC_SRC_DIR/cogutil-master/build_hf/*
-    cmake -DCMAKE_TOOLCHAIN_FILE=$CC_TC_SRC_DIR/arm_gnueabihf_toolchain.cmake -DCMAKE_INSTALL_PREFIX=$CC_TC_LIBS_PATH_1/usr/local -DCMAKE_BUILD_TYPE=Release ..
+    cmake -DCMAKE_TOOLCHAIN_FILE=$CC_TC_SRC_DIR/arm_gnueabihf_toolchain.cmake -DCONFDIR=/usr/local/etc -DDATADIR=/usr/local/share/opencog -DCMAKE_BUILD_TYPE=Release ..
     make -j$(nproc)
-    make install
+    make install DESTDIR=$CC_TC_LIBS_PATH_1/usr/local
 
     #compiling atomspace
     cd $CC_TC_SRC_DIR/atomspace-master/build_hf
@@ -205,16 +220,16 @@ do_cc_for_rpi () {
     #till we can cross compile with stack
     rm -f $CC_TC_SRC_DIR/atomspace-master/lib/FindStack.cmake
 
-    cmake -DCMAKE_TOOLCHAIN_FILE=$CC_TC_SRC_DIR/arm_gnueabihf_toolchain.cmake -DCMAKE_INSTALL_PREFIX=$CC_TC_LIBS_PATH_1/usr/local -DCMAKE_BUILD_TYPE=Release ..
+    cmake -DCMAKE_TOOLCHAIN_FILE=$CC_TC_SRC_DIR/arm_gnueabihf_toolchain.cmake -DCONFDIR=/usr/local/etc -DDATADIR=/usr/local/share/opencog -DCMAKE_BUILD_TYPE=Release ..
     make -j$(nproc)
-    make install
+    make install DESTDIR=$CC_TC_LIBS_PATH_1/usr/local
 
     #compiling opencog
     cd $CC_TC_SRC_DIR/opencog-master/build_hf
     rm -rf $CC_TC_SRC_DIR/opencog-master/build_hf/*
-    cmake -DCMAKE_TOOLCHAIN_FILE=$CC_TC_SRC_DIR/arm_gnueabihf_toolchain.cmake -DCMAKE_INSTALL_PREFIX=$CC_TC_LIBS_PATH_1/usr/local -DCMAKE_BUILD_TYPE=Release ..
+    cmake -DCMAKE_TOOLCHAIN_FILE=$CC_TC_SRC_DIR/arm_gnueabihf_toolchain.cmake -DCONFDIR=/usr/local/etc -DDATADIR=/usr/local/share/opencog -DCMAKE_BUILD_TYPE=Release ..
     make -j$(nproc)
-    make install
+    make install DESTDIR=$CC_TC_LIBS_PATH_1/usr/local
 
     #correct RPATHS
     cd $CC_TC_ROOT
@@ -240,19 +255,25 @@ Description: Artificial General Inteligence Engine for Linux
   to one day create human like intelligence that can be conscious and
   emotional.
   This is hopefully the end of task-specific narrow AI.
-  This package includes the files necessary for running opencog on RPI3.""" > DEBIAN/control
+  This package includes the files necessary for running opencog on RPI3.
+  Cogutil: $COGUTIL_COMMIT
+  Atomspace: $ATOMSPACE_COMMIT
+  Opencog: $OPENCOG_COMMIT""" > DEBIAN/control
 
-     echo '''#Manually written pkgconfig file for opencog - START
+     echo """#Manually written pkgconfig file for opencog - START
 prefix=/usr/local
-exec_prefix=${prefix}
-libdir=${exec_prefix}/lib
-includedir=${prefix}/include
+exec_prefix=\${prefix}
+libdir=\${exec_prefix}/lib
+includedir=\${prefix}/include
 Name: opencog
-Description: Artificial General Intelligence Software
+Description: Artificial General Intelligence Framework
 Version: 1.0
-Cflags: -I${includedir}
-Libs: -L${libdir}
-#Manually written pkgconfig file for opencog - END''' > ./usr/local/lib/pkgconfig/opencog.pc
+cogutil=$COGUTIL_COMMIT
+atomspace=$ATOMSPACE_COMMIT
+opencog=$OPENCOG_COMMIT
+Cflags: -I\${includedir}
+Libs: -L\${libdir}
+#Manually written pkgconfig file for opencog - END""" > ./usr/local/lib/pkgconfig/opencog.pc
      cd ..
      sudo chown -R root:staff $DEB_PKG_NAME
      sudo dpkg-deb --build $DEB_PKG_NAME
@@ -415,26 +436,23 @@ if [ $INSTALL_DEPS ] ; then
 			Installing packages${NORMAL_COLOR}\n"
 	        sudo apt-get install -y $APT_ARGS $INSTALL_PACKAGES
 		if [ "$DISTRO_RELEASE" == "$DISTRO_STRETCH" ] ; then
-			sudo apt-get install -y $APT_ARGS libboost1.62-all-dev
+			sudo apt-get install -y $APT_ARGS libboost1.62-dev
 		else
-			#install boost1.55
+			#install boost 1.55
 			sudo apt-get install -y $APT_ARGS libboost1.55-all-dev
-			
-			#install boost 1.60
-			#wget http://144.76.153.5/opencog/libboost-1.60-all-dev-1_armhf.deb
-			#sudo dpkg -i libboost-1.60-all-dev-1_armhf.deb
-			#rm libboost-1.60-all-dev-1_armhf.deb
 		fi
-	#	install_bdwgc # install bdwgc from source
-	#	install_guile # install guile  from source
+		#install_bdwgc # install bdwgc from source
+		#install_guile # install guile  from source
 		
 		install_bdwgc_deb # install bdwgc from deb pkg
 		install_guile_deb # install guile from a deb pkg
 		install_tbb   # install TBB
 		
 		sudo apt-get -y install $APT_ARGS $INSTALL_RELEX_DEPS
-    		export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-armhf
-    		export LC_ALL=en_US.UTF8
+		sudo update-alternatives --auto java 
+		sudo update-alternatives --auto javac
+    		export JAVA_HOME=/usr/lib/jvm/jdk-8-oracle-arm32-vfp-hflt
+    		export LC_ALL=en_US.UTF-8
 		install_lg   # install link-grammar
 		install_relex # install relex
 
